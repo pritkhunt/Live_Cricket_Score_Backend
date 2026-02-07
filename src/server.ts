@@ -29,7 +29,13 @@ app.use(helmet());
 app.use(morgan('dev'));
 
 // Database Connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://kp:4fsrBVa087Qo7jpc@cluster0.h5cmory.mongodb.net/cricket_live_score?retryWrites=true&w=majority';
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error('MONGO_URI is not defined in environment variables');
+  process.exit(1);
+}
+
 mongoose.connect(MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
@@ -41,7 +47,7 @@ app.use('/api', navRoutes);
 // Socket.IO
 io.on('connection', (socket: any) => {
   console.log('New client connected:', socket.id);
-  
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
@@ -72,7 +78,7 @@ app.get('/', (req, res) => {
 });
 
 // Start Server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

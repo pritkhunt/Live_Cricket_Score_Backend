@@ -65,6 +65,8 @@ export interface IMatch extends Document {
     }[];
   };
   recentOvers: string[];
+  crr?: string;
+  rrr?: string;
   commentary: ICommentary[];
   matchStatus: string;
   updatedAt: Date;
@@ -111,6 +113,8 @@ const MatchSchema: Schema = new Schema({
     }]
   },
   recentOvers: [String],
+  crr: { type: String },
+  rrr: { type: String },
   commentary: [{
     over: String,
     ball: String,
