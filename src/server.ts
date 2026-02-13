@@ -17,14 +17,16 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: ['http://localhost:4200', 'https://live-cricket-score-frontend.vercel.app'],
     methods: ['GET', 'POST']
   }
 });
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:4200', 'https://live-cricket-score-frontend.vercel.app']
+}));
 app.use(helmet());
 app.use(morgan('dev'));
 
