@@ -13,54 +13,56 @@ export const fetchAndStoreMatches = async (io: Server) => {
     const uniqueMatches = Array.from(new Map(scrapedMatches.map(m => [m.matchId, m])).values());
     console.log(`Processing ${uniqueMatches.length} unique matches`);
 
-    // Prepare all match update promises
+    // Run updates with limited concurrency (3 at a time) to prevent overloading Render
+    const CONCURRENCY_LIMIT = 3;
     const processedMatches: any[] = [];
-    const matchUpdatePromises = uniqueMatches.map(async (matchData) => {
-      try {
-        let updateData: any = { ...matchData };
 
-        // Always try to get details for live matches to ensure commentary updates
-        if (matchData.status === 'Live' && matchData.matchUrl) {
-          const details = await ScraperService.scrapeMatchDetail(matchData.matchUrl);
-          if (details) {
-            // Defensive Merge: Only merge non-empty objects/arrays
-            if (details.scorecard && (details.scorecard.batting.length > 0 || details.scorecard.bowling.length > 0)) {
-              updateData.scorecard = details.scorecard;
-            }
-            if (details.commentary && details.commentary.length > 0) {
-              updateData.commentary = details.commentary;
-            }
-            if (details.partnership) updateData.partnership = details.partnership;
-            if (details.recentOvers && details.recentOvers.length > 0) updateData.recentOvers = details.recentOvers;
-            if (details.crr) updateData.crr = details.crr;
-            if (details.rrr) updateData.rrr = details.rrr;
-            if (details.matchStatus) updateData.matchStatus = details.matchStatus;
+    for (let i = 0; i < uniqueMatches.length; i += CONCURRENCY_LIMIT) {
+      const chunk = uniqueMatches.slice(i, i + CONCURRENCY_LIMIT);
+      await Promise.all(chunk.map(async (matchData) => {
+        try {
+          let updateData: any = { ...matchData };
 
-            if (details.team1XI && details.team1XI.length > 0 && details.team2XI && details.team2XI.length > 0) {
-              updateData.playingXI = {
-                team1: details.team1XI,
-                team2: details.team2XI
-              };
+          // Always try to get details for live matches to ensure commentary updates
+          if (matchData.status === 'Live' && matchData.matchUrl) {
+            const details = await ScraperService.scrapeMatchDetail(matchData.matchUrl);
+            if (details) {
+              // Defensive Merge: Only merge non-empty objects/arrays
+              if (details.scorecard && (details.scorecard.batting.length > 0 || details.scorecard.bowling.length > 0)) {
+                updateData.scorecard = details.scorecard;
+              }
+              if (details.commentary && details.commentary.length > 0) {
+                updateData.commentary = details.commentary;
+              }
+              if (details.partnership) updateData.partnership = details.partnership;
+              if (details.recentOvers && details.recentOvers.length > 0) updateData.recentOvers = details.recentOvers;
+              if (details.crr) updateData.crr = details.crr;
+              if (details.rrr) updateData.rrr = details.rrr;
+              if (details.matchStatus) updateData.matchStatus = details.matchStatus;
+
+              if (details.team1XI && details.team1XI.length > 0 && details.team2XI && details.team2XI.length > 0) {
+                updateData.playingXI = {
+                  team1: details.team1XI,
+                  team2: details.team2XI
+                };
+              }
             }
           }
+
+          const match = await Match.findOneAndUpdate(
+            { matchId: matchData.matchId },
+            { $set: updateData },
+            { upsert: true, new: true, runValidators: true }
+          );
+
+          if (match) {
+            processedMatches.push(match.toObject());
+          }
+        } catch (err) {
+          console.error(`Error updating match ${matchData.matchId}:`, err);
         }
-
-        const match = await Match.findOneAndUpdate(
-          { matchId: matchData.matchId },
-          { $set: updateData },
-          { upsert: true, new: true, runValidators: true }
-        );
-
-        if (match) {
-          processedMatches.push(match.toObject());
-        }
-      } catch (err) {
-        console.error(`Error updating match ${matchData.matchId}:`, err);
-      }
-    });
-
-    // Run all updates in parallel
-    await Promise.all(matchUpdatePromises);
+      }));
+    }
 
     // Broadcast all updates synchronously
     processedMatches.forEach(m => io.emit('score_update', m));

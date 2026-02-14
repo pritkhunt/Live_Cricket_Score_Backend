@@ -57,10 +57,11 @@ export class ScraperService {
       console.log('BROWSER:', text);
     });
     page.on('request', (req: any) => {
-      if (['image', 'stylesheet', 'font'].includes(req.resourceType())) {
-        req.abort();
+      const blocked = ['image', 'stylesheet', 'font', 'media', 'other', 'websocket', 'manifest'];
+      if (blocked.includes(req.resourceType())) {
+        req.abort().catch(() => { });
       } else {
-        req.continue();
+        req.continue().catch(() => { });
       }
     });
 
@@ -229,7 +230,8 @@ export class ScraperService {
     const setupPage = async (p: any) => {
       await p.setRequestInterception(true);
       p.on('request', (req: any) => {
-        if (['image', 'stylesheet', 'font'].includes(req.resourceType())) {
+        const blocked = ['image', 'stylesheet', 'font', 'media', 'other', 'websocket', 'manifest'];
+        if (blocked.includes(req.resourceType())) {
           req.abort().catch(() => { });
         } else {
           req.continue().catch(() => { });
